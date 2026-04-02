@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="7c3781e7-c4a7-4735-87e4-1ed51aa291f2" name="Changes" comment="Dodani FordA file i početak rada na treningu">
+    <list default="true" id="7c3781e7-c4a7-4735-87e4-1ed51aa291f2" name="Changes" comment="Kreirana CNN mreža">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -142,13 +141,22 @@
       <option name="project" value="LOCAL" />
       <updated>1775146422692</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="Kreirana CNN mreža">
+      <option name="closed" value="true" />
+      <created>1775157887649</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1775157887649</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Kreiranje projekta" />
     <MESSAGE value="Dodan Readme.md" />
     <MESSAGE value="Dodani FordA file i početak rada na treningu" />
-    <option name="LAST_COMMIT_MESSAGE" value="Dodani FordA file i početak rada na treningu" />
+    <MESSAGE value="Kreirana CNN mreža" />
+    <option name="LAST_COMMIT_MESSAGE" value="Kreirana CNN mreža" />
   </component>
 </project>

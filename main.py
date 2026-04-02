@@ -31,15 +31,38 @@ class DatasetLoader(Dataset):
 
     def __getitem__(self, idx):
         return self.x[idx], self.y[idx]
+#FCCN klasa koristi konvolucijsku mrežu za treniranje modela
+class FCNN(nn.Module):
+  def __init__(self):
+    super().__init__()
+
+    self.layers = nn.Sequential(
+      nn.Flatten(),
+      nn.Linear(500, 128),
+      nn.ReLU(),
+      nn.Linear(128, 64),
+      nn.ReLU(),
+      nn.Linear(64, 2)
+    )
 
 
-# Inicijalizacija
-train_dataset = DatasetLoader('FordA/FordA_TRAIN.txt')
-test_dataset = DatasetLoader('FordA/FordA_TEST.txt')
+  def forward(self, x):
+    return self.layers(x)
+class LSTMModel(nn.Module):
+    def __init__(self,input_size=1,hidden_size=64,num_layers=2):
+        super().__init__()
+        self.hidden_size=hidden_size
+        self.num_layers=num_layers
+        self.lstm=nn.LSTM(input_size,hidden_size,num_layers,batch_first=True,dropout=0.2)
+        self.fc=nn.Linear(hidden_size,2)
+    def forward(self,x):
+        x=x.permute(0,2,1)
+        h0=torch.zeros(self.num_layers,x.size(0),self.hidden_size).to(device)
+        c0=torch.zeros(self.num_layers,x.size(0),self.hidden_size).to(device)
 
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
-
+        out,_=self.lstm(x,(h0,c0))
+        out=self.fc(out[:,-1,:])
+        return out
 #Evaluacijska funkcija
 def eval_function(model,test_loader):
     model.eval()
@@ -55,7 +78,7 @@ def eval_function(model,test_loader):
         return accuracy
 
 # Train function
-def train(model, train_loader, test_loader, epochs=1):
+def train(model, train_loader, test_loader, epochs=10):
   criterion = nn.CrossEntropyLoss()
   optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE)
 
@@ -111,29 +134,17 @@ def final_test(model, test_loader):
     print("\nGrafikon matrice zabune je spremljen kao 'confusion_matrix.png'")
     plt.close()
 
-#FCCN klasa koristi konvolucijsku mrežu za treniranje modela
-class FCNN(nn.Module):
-  def __init__(self):
-    super().__init__()
 
-    self.layers = nn.Sequential(
-      nn.Flatten(),
-      nn.Linear(500, 128),
-      nn.ReLU(),
-      nn.Linear(128, 64),
-      nn.ReLU(),
-      nn.Linear(64, 2)
-    )
+if __name__=="__main__":
+    train_dataset = DatasetLoader('FordA/FordA_TRAIN.txt')
+    test_dataset = DatasetLoader('FordA/FordA_TEST.txt')
 
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
-  def forward(self, x):
-    return self.layers(x)
+    cnn_model=FCNN().to(device)
+    train(cnn_model,train_loader,test_loader)
 
+    lstm_model=LSTMModel().to(device)
+    train(lstm_model,train_loader,test_loader)
 
-model = FCNN().to(device)
-
-print_model(model)
-train(model, train_loader, test_loader, epochs=EPOCHS)
-accuracy = eval_function(model, test_loader)
-final_test(model,test_loader)
-print(f'Test accuracy: {accuracy:.2f}%')
