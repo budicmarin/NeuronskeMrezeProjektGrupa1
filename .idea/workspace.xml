@@ -1,16 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="7c3781e7-c4a7-4735-87e4-1ed51aa291f2" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/FordA/FordA.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/FordA/FordA_TEST.arff" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/FordA/FordA_TEST.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/FordA/FordA_TEST.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/FordA/FordA_TRAIN.arff" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/FordA/FordA_TRAIN.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/FordA/FordA_TRAIN.txt" afterDir="false" />
+    <list default="true" id="7c3781e7-c4a7-4735-87e4-1ed51aa291f2" name="Changes" comment="Dodani FordA file i početak rada na treningu">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -140,12 +134,21 @@
       <option name="project" value="LOCAL" />
       <updated>1774603002509</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Dodani FordA file i početak rada na treningu">
+      <option name="closed" value="true" />
+      <created>1775146422691</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1775146422692</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Kreiranje projekta" />
     <MESSAGE value="Dodan Readme.md" />
-    <option name="LAST_COMMIT_MESSAGE" value="Dodan Readme.md" />
+    <MESSAGE value="Dodani FordA file i početak rada na treningu" />
+    <option name="LAST_COMMIT_MESSAGE" value="Dodani FordA file i početak rada na treningu" />
   </component>
 </project>
