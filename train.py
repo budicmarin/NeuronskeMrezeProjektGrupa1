@@ -1,187 +1,108 @@
-"""
-train.py
-Training and evaluation pipeline.
-- Trains CNN1D and LSTM on FordA_TRAIN (with validation split)
-- Evaluates on FordA_TEST and FordB_TEST
-- Saves best models and prints metrics
-"""
+import os, json, torch, torch.nn as nn, torch.optim as optim
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from data import get_loaders
+from models import CNN1D, GRU
+from plot import plot_hist, plot_cm, plot_cmp
 
-import os
-import json
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-)
-
-from data import get_dataloaders
-from models import CNN1D, LSTMClassifier
-
-
-# ------------------------------------------------------------------
-# Config
-# ------------------------------------------------------------------
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-EPOCHS = 50
-LR = 1e-3
-BATCH_SIZE = 64
-VAL_RATIO = 0.2
-PATIENCE = 10  # early stopping
+EPOCHS, LR, BS, VALR, PAT = 50, 1e-3, 64, 0.2, 10
+SD = os.path.dirname(os.path.abspath(__file__))
+PATHS = {
+    "train": os.path.join(SD, "FordA", "FordA_TRAIN.txt"),
+    "test_a": os.path.join(SD, "FordA", "FordA_TEST.txt"),
+    "test_b": os.path.join(SD, "FordB", "FordB_TEST.txt"),
+}
 
+def run_epoch(m, dl, crit, opt=None, clip=None):
+    train = opt is not None
+    m.train(train)
+    L, P, Y = 0.0, [], []
+    for x, y in dl:
+        x, y = x.to(DEVICE), y.to(DEVICE)
+        if train:
+            opt.zero_grad()
+            out = m(x)
+            l = crit(out, y)
+            l.backward()
+            if clip:
+                nn.utils.clip_grad_norm_(m.parameters(), clip)
+            opt.step()
+        else:
+            with torch.no_grad():
+                out = m(x)
+                l = crit(out, y)
+        L += l.item() * len(y)
+        P += out.argmax(1).cpu().tolist()
+        Y += y.cpu().tolist()
+    return L / len(dl.dataset), accuracy_score(Y, P), Y, P
 
-# Get the directory where train.py lives
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-TRAIN_PATH = os.path.join(SCRIPT_DIR, ".", "FordA", "FordA_TRAIN.txt")
-TEST_A_PATH = os.path.join(SCRIPT_DIR, ".", "FordA", "FordA_TEST.txt")
-TEST_B_PATH = os.path.join(SCRIPT_DIR, ".", "FordB", "FordB_TEST.txt")
-
-
-def train_one_epoch(model, loader, criterion, optimizer, device):
-    model.train()
-    total_loss = 0.0
-    for xb, yb in loader:
-        xb, yb = xb.to(device), yb.to(device)
-        optimizer.zero_grad()
-        logits = model(xb)
-        loss = criterion(logits, yb)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item() * xb.size(0)
-    return total_loss / len(loader.dataset)
-
-
-def evaluate(model, loader, criterion, device):
-    model.eval()
-    total_loss = 0.0
-    all_preds = []
-    all_labels = []
-
-    with torch.no_grad():
-        for xb, yb in loader:
-            xb, yb = xb.to(device), yb.to(device)
-            logits = model(xb)
-            loss = criterion(logits, yb)
-            total_loss += loss.item() * xb.size(0)
-
-            preds = torch.argmax(logits, dim=1)
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(yb.cpu().numpy())
-
-    avg_loss = total_loss / len(loader.dataset)
-    acc = accuracy_score(all_labels, all_preds)
-    return avg_loss, acc, all_labels, all_preds
-
-
-def compute_metrics(labels, preds):
+def get_metrics(y, p):
     return {
-        "accuracy": accuracy_score(labels, preds),
-        "precision": precision_score(labels, preds, zero_division=0),
-        "recall": recall_score(labels, preds, zero_division=0),
-        "f1": f1_score(labels, preds, zero_division=0),
-        "confusion_matrix": confusion_matrix(labels, preds).tolist()
+        "acc": accuracy_score(y, p),
+        "prec": precision_score(y, p, zero_division=0),
+        "rec": recall_score(y, p, zero_division=0),
+        "f1": f1_score(y, p, zero_division=0),
+        "cm": confusion_matrix(y, p).tolist(),
     }
 
-
-def train_model(model, train_loader, val_loader, model_name, device, epochs=EPOCHS, lr=LR, patience=PATIENCE):
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=patience // 2)
-
-    history = {"train_loss": [], "val_loss": [], "val_acc": []}
-    best_val_loss = float("inf")
-    epochs_no_improve = 0
-    best_state = None
-
-    print(f"\n=== Training {model_name} ===")
-    for epoch in range(1, epochs + 1):
-        train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss, val_acc, _, _ = evaluate(model, val_loader, criterion, device)
-
-        history["train_loss"].append(train_loss)
-        history["val_loss"].append(val_loss)
-        history["val_acc"].append(val_acc)
-
-        scheduler.step(val_loss)
-
-        print(f"Epoch {epoch:02d}/{epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
-
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_state = model.state_dict()
-            epochs_no_improve = 0
+def train_model(m, tr_dl, va_dl, name, clip=None):
+    crit = nn.CrossEntropyLoss()
+    opt = optim.Adam(m.parameters(), lr=LR)
+    sched = optim.lr_scheduler.ReduceLROnPlateau(opt, factor=0.5, patience=PAT // 2)
+    hist, best, wait, best_sd = {"tl": [], "vl": [], "va": []}, float("inf"), 0, None
+    print(f"\n>> Training {name}  device={DEVICE}")
+    for e in range(1, EPOCHS + 1):
+        tl, _, _, _ = run_epoch(m, tr_dl, crit, opt, clip)
+        vl, va, _, _ = run_epoch(m, va_dl, crit)
+        hist["tl"].append(tl); hist["vl"].append(vl); hist["va"].append(va)
+        sched.step(vl)
+        print(f"  E{e:02d}: train_loss={tl:.4f}  val_loss={vl:.4f}  val_acc={va:.4f}")
+        if vl < best:
+            best, wait, best_sd = vl, 0, m.state_dict()
         else:
-            epochs_no_improve += 1
-            if epochs_no_improve >= patience:
-                print(f"Early stopping at epoch {epoch}")
+            wait += 1
+            if wait >= PAT:
+                print(f"  Early stop @ epoch {e}")
                 break
+    m.load_state_dict(best_sd)
+    os.makedirs("ckpt", exist_ok=True)
+    torch.save(best_sd, f"ckpt/{name}.pt")
+    print(f"  Saved ckpt/{name}.pt")
+    return m, hist
 
-    # Load best weights
-    if best_state is not None:
-        model.load_state_dict(best_state)
-
-    # Save model
-    os.makedirs("checkpoints", exist_ok=True)
-    torch.save(best_state, f"checkpoints/{model_name}_best.pt")
-    print(f"Saved best model to checkpoints/{model_name}_best.pt")
-
-    return model, history
-
-
-def test_model(model, test_loader, model_name, dataset_name, device):
-    criterion = nn.CrossEntropyLoss()
-    loss, acc, labels, preds = evaluate(model, test_loader, criterion, device)
-    metrics = compute_metrics(labels, preds)
-    metrics["loss"] = loss
-
-    print(f"\n--- {model_name} on {dataset_name} ---")
-    print(f"Loss:      {loss:.4f}")
-    print(f"Accuracy:  {metrics['accuracy']:.4f}")
-    print(f"Precision: {metrics['precision']:.4f}")
-    print(f"Recall:    {metrics['recall']:.4f}")
-    print(f"F1-Score:  {metrics['f1']:.4f}")
-    print(f"Confusion Matrix:{metrics['confusion_matrix']}")
-
-    return metrics
-    
+def test_model(m, dl, name, ds):
+    vl, va, y, p = run_epoch(m, dl, nn.CrossEntropyLoss())
+    r = get_metrics(y, p)
+    r["loss"] = vl
+    print(f"  >> {name} on {ds}:  loss={vl:.4f}  acc={r['acc']:.4f}  f1={r['f1']:.4f}")
+    return r, y, p
 
 def main():
-    # 1. Load data
-    train_loader, val_loader, test_a_loader, test_b_loader = get_dataloaders(
-        TRAIN_PATH, TEST_A_PATH, TEST_B_PATH,
-        val_ratio=VAL_RATIO, batch_size=BATCH_SIZE
-    )
-
-    # 2. Initialize models
-    cnn = CNN1D(num_classes=2).to(DEVICE)
-    lstm = LSTMClassifier(input_size=1, hidden_size=128, num_layers=2, num_classes=2).to(DEVICE)
-
-    # 3. Train models
-    cnn, cnn_hist = train_model(cnn, train_loader, val_loader, "CNN1D", DEVICE)
-    lstm, lstm_hist = train_model(lstm, train_loader, val_loader, "LSTM", DEVICE)
-
-    # 4. Evaluate on FordA_TEST
-    cnn_a = test_model(cnn, test_a_loader, "CNN1D", "FordA_TEST", DEVICE)
-    lstm_a = test_model(lstm, test_a_loader, "LSTM", "FordA_TEST", DEVICE)
-
-    # 5. Evaluate on FordB_TEST (robustness check)
-    cnn_b = test_model(cnn, test_b_loader, "CNN1D", "FordB_TEST", DEVICE)
-    lstm_b = test_model(lstm, test_b_loader, "LSTM", "FordB_TEST", DEVICE)
-
-    # 6. Save histories and metrics
+    tr_dl, va_dl, ta_dl, tb_dl = get_loaders(PATHS["train"], PATHS["test_a"], PATHS["test_b"], VALR, BS)
+    results = {}
+    for name, Model, cfg, clip in [
+        ("CNN1D", CNN1D, {"nc": 2}, None),
+        ("GRU", GRU, {"nc": 2, "hid": 128, "layers": 1}, 1.0),
+    ]:
+        m = Model(**cfg).to(DEVICE)
+        m, hist = train_model(m, tr_dl, va_dl, name, clip)
+        ra, ya, pa = test_model(m, ta_dl, name, "FordA_TEST")
+        rb, yb, pb = test_model(m, tb_dl, name, "FordB_TEST")
+        results[name] = {"FordA_TEST": ra, "FordB_TEST": rb, "hist": hist}
+        plot_hist(hist, name)
+        plot_cm(ya, pa, name, "FordA_TEST")
+        plot_cm(yb, pb, name, "FordB_TEST")
+        payload = {"model_cfg": cfg, "train_cfg": {"epochs": len(hist["tl"]), "lr": LR, "batch": BS, "val_ratio": VALR}, "FordA_TEST": ra, "FordB_TEST": rb}
+        with open(f"ckpt/{name}.json", "w") as f:
+            json.dump(payload, f, indent=2)
+        print(f"  Saved ckpt/{name}.json")
     os.makedirs("results", exist_ok=True)
-    with open("results/histories.json", "w") as f:
-        json.dump({"CNN1D": cnn_hist, "LSTM": lstm_hist}, f, indent=2)
-
     with open("results/metrics.json", "w") as f:
-        json.dump({
-            "CNN1D": {"FordA_TEST": cnn_a, "FordB_TEST": cnn_b},
-            "LSTM": {"FordA_TEST": lstm_a, "FordB_TEST": lstm_b}
-        }, f, indent=2)
-
-    print("\nAll done. Results saved to results/")
-
+        json.dump({k: {"FordA_TEST": v["FordA_TEST"], "FordB_TEST": v["FordB_TEST"]} for k, v in results.items()}, f, indent=2)
+    with open("results/histories.json", "w") as f:
+        json.dump({k: v["hist"] for k, v in results.items()}, f, indent=2)
+    plot_cmp({k: {"FordA_TEST": v["FordA_TEST"], "FordB_TEST": v["FordB_TEST"]} for k, v in results.items()})
+    print("\nDone. Check ckpt/, results/, plots/")
 
 if __name__ == "__main__":
     main()

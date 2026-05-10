@@ -1,118 +1,44 @@
-"""
-plot.py
-Visualization utilities for the seminar project.
-- Training/validation loss and accuracy curves
-- Confusion matrices
-- Metric comparison bar charts (FordA_TEST vs FordB_TEST)
-"""
-
-import os
-import json
-import numpy as np
-import matplotlib.pyplot as plt
+import os, numpy as np, matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
+os.makedirs("plots", exist_ok=True)
 
-def plot_training_history(history, model_name, save_dir="plots"):
-    """Plot loss and accuracy curves from training history."""
-    os.makedirs(save_dir, exist_ok=True)
-    epochs = range(1, len(history["train_loss"]) + 1)
-
-    fig, ax1 = plt.subplots(figsize=(8, 5))
-    ax1.plot(epochs, history["train_loss"], "b-", label="Train Loss")
-    ax1.plot(epochs, history["val_loss"], "b--", label="Val Loss")
-    ax1.set_xlabel("Epoch")
-    ax1.set_ylabel("Loss", color="b")
-    ax1.tick_params(axis="y", labelcolor="b")
-    ax1.legend(loc="upper left")
-
-    ax2 = ax1.twinx()
-    ax2.plot(epochs, history["val_acc"], "r-", label="Val Acc")
-    ax2.set_ylabel("Accuracy", color="r")
-    ax2.tick_params(axis="y", labelcolor="r")
-    ax2.legend(loc="upper right")
-
-    plt.title(f"{model_name} Training History")
-    fig.tight_layout()
-    path = os.path.join(save_dir, f"{model_name}_history.png")
-    plt.savefig(path, dpi=300)
+def plot_hist(hist, name):
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4))
+    e = range(1, len(hist["tl"]) + 1)
+    ax[0].plot(e, hist["tl"], label="train", lw=1.5)
+    ax[0].plot(e, hist["vl"], label="val", lw=1.5)
+    ax[0].set_title(f"{name} – Loss"); ax[0].set_xlabel("Epoch"); ax[0].legend()
+    ax[1].plot(e, hist["va"], color="green", lw=1.5)
+    ax[1].set_title(f"{name} – Val Accuracy"); ax[1].set_xlabel("Epoch"); ax[1].set_ylim(0, 1.05)
+    fig.tight_layout(pad=2.5)
+    plt.savefig(f"plots/{name}_hist.png", dpi=200, bbox_inches="tight")
     plt.close()
-    print(f"Saved plot: {path}")
 
-
-def plot_confusion_matrix(y_true, y_pred, model_name, dataset_name, save_dir="plots"):
-    """Plot and save a confusion matrix."""
-    os.makedirs(save_dir, exist_ok=True)
-    cm = confusion_matrix(y_true, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["-1 (Class 0)", "1 (Class 1)"])
-    disp.plot(cmap="Blues", values_format="d")
-    plt.title(f"{model_name} – {dataset_name}")
-    path = os.path.join(save_dir, f"{model_name}_{dataset_name}_cm.png")
-    plt.savefig(path, dpi=300, bbox_inches="tight")
+def plot_cm(y, p, name, ds):
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ConfusionMatrixDisplay(confusion_matrix(y, p), display_labels=["-1","1"]).plot(ax=ax, cmap="Blues", colorbar=False)
+    ax.set_title(f"{name} – {ds}")
+    plt.tight_layout(pad=2.5)
+    plt.savefig(f"plots/{name}_{ds}_cm.png", dpi=200, bbox_inches="tight")
     plt.close()
-    print(f"Saved plot: {path}")
 
-
-def plot_metric_comparison(metrics_dict, save_dir="plots"):
-    """
-    Bar chart comparing CNN1D vs LSTM on FordA_TEST and FordB_TEST.
-    metrics_dict format:
-    {
-        "CNN1D": {"FordA_TEST": {...}, "FordB_TEST": {...}},
-        "LSTM":  {"FordA_TEST": {...}, "FordB_TEST": {...}}
+def plot_cmp(res):
+    fig, ax = plt.subplots(figsize=(10, 5))
+    keys = ["acc", "prec", "rec", "f1"]
+    x = np.arange(len(keys)); w = 0.2
+    colors = {
+        "CNN1D_A": "#1f77b4", "CNN1D_B": "#aec7e8",
+        "GRU_A": "#ff7f0e", "GRU_B": "#ffbb78",
     }
-    """
-    os.makedirs(save_dir, exist_ok=True)
-    metric_names = ["accuracy", "precision", "recall", "f1"]
-    models = ["CNN1D", "LSTM"]
-    datasets = ["FordA_TEST", "FordB_TEST"]
-
-    x = np.arange(len(metric_names))
-    width = 0.2
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    colors = {"CNN1D_FordA_TEST": "#1f77b4", "CNN1D_FordB_TEST": "#aec7e8",
-              "LSTM_FordA_TEST": "#ff7f0e", "LSTM_FordB_TEST": "#ffbb78"}
-
-    for i, model in enumerate(models):
-        for j, dataset in enumerate(datasets):
-            vals = [metrics_dict[model][dataset][m] for m in metric_names]
-            offset = (i * 2 + j - 1.5) * width
-            label = f"{model} ({dataset})"
-            ax.bar(x + offset, vals, width, label=label, color=colors[f"{model}_{dataset}"])
-
-    ax.set_ylabel("Score")
-    ax.set_title("Model Comparison: Metrics on FordA_TEST vs FordB_TEST")
-    ax.set_xticks(x)
-    ax.set_xticklabels([m.capitalize() for m in metric_names])
-    ax.set_ylim(0, 1.05)
-    ax.legend()
-    ax.grid(axis="y", linestyle="--", alpha=0.7)
-
-    path = os.path.join(save_dir, "metric_comparison.png")
-    plt.savefig(path, dpi=300, bbox_inches="tight")
+    for i, (model, d) in enumerate(res.items()):
+        for j, ds in enumerate(["FordA_TEST", "FordB_TEST"]):
+            v = [d[ds][k] for k in keys]
+            ax.bar(x + (i * 2 + j - 1.5) * w, v, w, label=f"{model} ({ds})", color=colors[f"{model}_{ds[4]}"])
+    ax.set_ylabel("Score"); ax.set_title("Model Comparison")
+    ax.set_xticks(x); ax.set_xticklabels([k.capitalize() for k in keys])
+    ax.set_ylim(0, 1.05); ax.grid(axis="y", ls="--", alpha=0.4)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
+    plt.tight_layout(pad=2.5)
+    plt.savefig("plots/comparison.png", dpi=200, bbox_inches="tight")
     plt.close()
-    print(f"Saved plot: {path}")
-
-
-def generate_all_plots():
-    """Convenience function to generate all plots from saved results."""
-    # Load histories
-    with open("results/histories.json", "r") as f:
-        histories = json.load(f)
-
-    for model_name, hist in histories.items():
-        plot_training_history(hist, model_name)
-
-    # Load metrics and re-run confusion matrices
-    # (Confusion matrices need raw predictions; here we just plot the metric bars)
-    with open("results/metrics.json", "r") as f:
-        metrics = json.load(f)
-
-    plot_metric_comparison(metrics)
-
-    print("\nAll plots generated in plots/")
-
-
-if __name__ == "__main__":
-    generate_all_plots()
