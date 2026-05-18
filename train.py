@@ -4,15 +4,23 @@ from data import get_loaders
 from models import CNN1D, GRU
 from plot import plot_hist, plot_cm, plot_cmp
 
+#postavljanje uređaja koji pokreće kod
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+''' Postavljanje broja Epoha=50
+    Learning rate =1e-3
+    Pattience =10
+'''
 EPOCHS, LR, BS, VALR, PAT = 50, 1e-3, 64, 0.2, 10
+
+#dohvaćanje datoteka za učenje i testiranje i postavljanje njihovih putanja
 SD = os.path.dirname(os.path.abspath(__file__))
 PATHS = {
     "train": os.path.join(SD, "FordA", "FordA_TRAIN.txt"),
     "test_a": os.path.join(SD, "FordA", "FordA_TEST.txt"),
     "test_b": os.path.join(SD, "FordB", "FordB_TEST.txt"),
 }
-
+#funkcija za pokretanje epoha
 def run_epoch(m, dl, crit, opt=None, clip=None):
     train = opt is not None
     m.train(train)
@@ -35,7 +43,7 @@ def run_epoch(m, dl, crit, opt=None, clip=None):
         P += out.argmax(1).cpu().tolist()
         Y += y.cpu().tolist()
     return L / len(dl.dataset), accuracy_score(Y, P), Y, P
-
+#funkcija za dobivanje podataka
 def get_metrics(y, p):
     return {
         "acc": accuracy_score(y, p),
@@ -44,7 +52,7 @@ def get_metrics(y, p):
         "f1": f1_score(y, p, zero_division=0),
         "cm": confusion_matrix(y, p).tolist(),
     }
-
+#funkcija za trening
 def train_model(m, tr_dl, va_dl, name, clip=None):
     crit = nn.CrossEntropyLoss()
     opt = optim.Adam(m.parameters(), lr=LR)
@@ -69,17 +77,19 @@ def train_model(m, tr_dl, va_dl, name, clip=None):
     torch.save(best_sd, f"ckpt/{name}.pt")
     print(f"  Saved ckpt/{name}.pt")
     return m, hist
-
+#funkcija za testiranje modela
 def test_model(m, dl, name, ds):
     vl, va, y, p = run_epoch(m, dl, nn.CrossEntropyLoss())
     r = get_metrics(y, p)
     r["loss"] = vl
     print(f"  >> {name} on {ds}:  loss={vl:.4f}  acc={r['acc']:.4f}  f1={r['f1']:.4f}")
     return r, y, p
-
+#main funkcija
 def main():
+
     tr_dl, va_dl, ta_dl, tb_dl = get_loaders(PATHS["train"], PATHS["test_a"], PATHS["test_b"], VALR, BS)
     results = {}
+    #
     for name, Model, cfg, clip in [
         ("CNN1D", CNN1D, {"nc": 2}, None),
         ("GRU", GRU, {"nc": 2, "hid": 128, "layers": 1}, 1.0),
